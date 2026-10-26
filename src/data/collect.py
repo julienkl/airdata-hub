@@ -81,15 +81,16 @@ def http_get(url: str, params: dict | None = None, retries: int = 3, backoff: fl
     raise RuntimeError("inatteignable")
 
 
-def collect_communes(departement: str) -> list[dict]:
-    resp = http_get(
-        GEO_API,
-        params={"codeDepartement": departement, "fields": "nom,code,codesPostaux,population,centre", "format": "json"},
-    )
-    communes = resp.json()
-    log.info("communes collectées : %d (département %s)", len(communes), departement)
-    _save("communes", communes)
-    return communes
+def collect_communes(departements: str) -> list[dict]:
+    """Collecte les communes d'un ou plusieurs départements (codes séparés par des virgules)."""
+    communes: list[dict] = []
+    for dep in [d.strip() for d in departements.split(",") if d.strip()]:
+        resp = http_get(
+            GEO_API,
+            params={"codeDepartement": dep, "fields": "nom,code,codesPostaux,population,centre", "format": "json"},
+        )
+        communes.extend(resp.json())
+    log.info("communes collectées : %d (départements %s)", len(communes), departements)
 
 
 def collect_air(communes: list[dict], days: int, limit: int) -> None:
@@ -150,9 +151,9 @@ def collect_episodes() -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Collecte AirData Hub")
     parser.add_argument("--source", choices=["all", "communes", "air", "stations", "episodes"], default="all")
-    parser.add_argument("--departement", default=os.getenv("DEPARTEMENT", "75"))
+    parser.add_argument("--departement", default=os.getenv("DEPARTEMENT", "75,92,93,94"), help="un ou plusieurs codes séparés par des virgules")
     parser.add_argument("--days", type=int, default=7)
-    parser.add_argument("--limit", type=int, default=10, help="nombre de communes pour les mesures d'air")
+    parser.add_argument("--limit", type=int, default=20, help="nombre de communes (les plus peuplées) pour les mesures d air")
     parser.add_argument("--stations-csv", default=None)
     args = parser.parse_args(argv)
 
