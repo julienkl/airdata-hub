@@ -14,11 +14,12 @@ WHERE m.horodatage >= NOW() - INTERVAL '7 days'
 GROUP BY c.code_insee, c.nom
 ORDER BY pm25_moy DESC;
 
--- Q2. Top 10 des pics horaires de PM2.5 (dépassement du seuil OMS journalier 15 µg/m³ à titre indicatif)
-SELECT c.nom, m.horodatage, m.pm25
+-- Q2. Top 10 des pics horaires de PM2.5, avec repérage du dépassement du seuil OMS journalier (15 µg/m³, indicatif)
+SELECT c.nom, m.horodatage, m.pm25,
+       m.pm25 > 15 AS au_dessus_seuil_oms
 FROM mesure m
 JOIN commune c USING (code_insee)
-WHERE m.pm25 > 15
+WHERE m.pm25 IS NOT NULL
 ORDER BY m.pm25 DESC
 LIMIT 10;
 
@@ -46,8 +47,22 @@ WHERE a.consentement IS TRUE
 GROUP BY c.nom
 ORDER BY nb_abonnes DESC;
 
--- Q6. Optimisation : mesurer l'effet d'un index composite sur la requête la plus fréquente de l'API
-EXPLAIN ANALYZE SELECT * FROM mesure WHERE code_insee = '75056' AND horodatage >= NOW() - INTERVAL '7 days';
-CREATE INDEX IF NOT EXISTS ix_mesure_commune_heure ON mesure (code_insee, horodatage);
-EXPLAIN ANALYZE SELECT * FROM mesure WHERE code_insee = '75056' AND horodatage >= NOW() - INTERVAL '7 days';
--- Preuve : capturer les deux plans (Seq Scan -> Index Scan) et les temps d'exécution.
+-- Q6. Optimisation par index : requête « top des pics de PM2.5 » (Q2), appelée par le tableau de bord.
+-- Constat préalable : la requête principale de l'API (commune + période) est DÉJÀ indexée :
+--   ix_mesure_code_insee (créé par le modèle) et uq_mesure_commune_heure (contrainte anti-doublons,
+--   PostgreSQL crée automatiquement un index pour toute contrainte d'unicité). Inutile d'en ajouter un.
+-- En revanche, rien n'indexe pm25 : PostgreSQL doit lire toute la table puis trier.
+ANALYZE mesure;                                   -- statistiques à jour pour le planificateur
+DROP INDEX IF EXISTS ix_mesure_pm25;              -- rend la démonstration rejouable
+
+-- AVANT : attendu « Seq Scan » + « Sort » (lecture et tri de toutes les lignes)
+EXPLAIN ANALYZE
+SELECT code_insee, horodatage, pm25 FROM mesure ORDER BY pm25 DESC LIMIT 10;
+
+CREATE INDEX ix_mesure_pm25 ON mesure (pm25 DESC);
+ANALYZE mesure;
+
+-- APRÈS : attendu « Index Scan using ix_mesure_pm25 » (lecture des 10 lignes utiles seulement)
+EXPLAIN ANALYZE
+SELECT code_insee, horodatage, pm25 FROM mesure ORDER BY pm25 DESC LIMIT 10;
+-- Preuve : capturer les deux plans et comparer « Execution Time » et le nombre de lignes lues.
