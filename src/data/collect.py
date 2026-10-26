@@ -91,6 +91,8 @@ def collect_communes(departements: str) -> list[dict]:
         )
         communes.extend(resp.json())
     log.info("communes collectées : %d (départements %s)", len(communes), departements)
+    _save("communes", communes)
+    return communes
 
 
 def collect_air(communes: list[dict], days: int, limit: int) -> None:

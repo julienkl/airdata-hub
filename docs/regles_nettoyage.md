@@ -17,7 +17,12 @@ Implémentées dans `src/data/clean.py`, vérifiées par `tests/test_data.py`. L
 
 | Indicateur | Avant | Après |
 |---|---|---|
-| Lignes de mesures | | |
-| Valeurs manquantes PM2.5 | | |
-| Valeurs aberrantes neutralisées | | |
-| Doublons supprimés | | |
+| Lignes | 3528 | 3360 |
+| Doublons (collectes qui se chevauchent) | 168 | 0 |
+| Valeurs aberrantes (hors bornes physiques) | 0 | 0 |
+| Valeurs manquantes PM25 | 0 | 0 |
+| Valeurs manquantes PM10 | 0 | 0 |
+| Valeurs manquantes NO2 | 0 | 0 |
+| Valeurs manquantes O3 | 0 | 0 |
+| Valeurs interpolées (trous ≤ 3 h) | — | 0 |
+| Lignes sans aucun polluant supprimées | — | 0 |

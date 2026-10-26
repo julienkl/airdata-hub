@@ -52,3 +52,15 @@ def test_doublons_supprimes():
     df, _ = clean_mesures(raw)
     assert len(df) == 2
     assert pd.api.types.is_datetime64_any_dtype(df["horodatage"])
+
+
+def test_fusion_de_collectes_qui_se_chevauchent():
+    # Collecte du jour J (heures 0-5) puis du jour J+1 (heures 3-8) : 3 heures en commun.
+    def serie(start, n):
+        return {"code_insee": "75056", "data": {"hourly": {
+            "time": [f"2026-01-01T{h:02d}:00" for h in range(start, start + n)],
+            "pm2_5": [10.0] * n, "pm10": [20.0] * n, "nitrogen_dioxide": [30.0] * n, "ozone": [40.0] * n}}}
+    df, stats = clean_mesures([serie(0, 6), serie(3, 6)])
+    assert stats["lignes_brutes"] == 12
+    assert stats["doublons_supprimes"] == 3
+    assert len(df) == 9
