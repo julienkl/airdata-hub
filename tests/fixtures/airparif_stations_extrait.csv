@@ -1,0 +1,5 @@
+nom_station,code_station,typologie,influence,nom_com,insee_com,x_wgs84,y_wgs84,nom_poll,valeur,unite,date_debut
+STATION TEST A,FR00001,Urbaine,Fond,Paris,75056,2.30,48.85,PM10,18.2,µg/m3,2026/10/25 10:00:00
+STATION TEST A,FR00001,Urbaine,Fond,Paris,75056,2.30,48.85,PM10,17.9,µg/m3,2026/10/25 11:00:00
+STATION TEST B,FR00002,Urbaine,Trafic,Paris,75056,2.40,48.84,PM10,25.1,µg/m3,2026/10/25 10:00:00
+STATION TEST C,FR00003,Périurbaine,Fond,Montreuil,93048,2.44,48.86,PM10,12.0,µg/m3,2026/10/25 10:00:00

@@ -6,7 +6,7 @@ Usage :
 - Mesures de qualité de l'air : fusion de TOUTES les collectes présentes dans data/raw/air/
   (chaque collecte couvre les N derniers jours, les collectes successives se chevauchent),
   puis dédoublonnage, contrôle des bornes, interpolation limitée.
-- Communes, épisodes, stations : fichier le plus récent de chaque source.
+- Communes, épisodes (JSON extrait du scraping), stations : fichier le plus récent de chaque source.
 
 Sorties :
     data/processed/*.csv                 données propres
@@ -118,20 +118,66 @@ def clean_mesures(raw: list[dict]) -> tuple[pd.DataFrame, dict]:
     return df, stats
 
 
-def clean_episodes(raw: list[dict]) -> pd.DataFrame:
-    df = pd.DataFrame(raw, columns=["date", "zone", "polluant", "niveau"])
+NIVEAUX = {"information": "information", "informations": "information", "alerte": "alerte",
+           "alerte sur persistance": "alerte sur persistance"}
+
+
+def clean_episodes(raw: list[dict]) -> tuple[pd.DataFrame, dict]:
+    """Épisodes scrapés sur Airparif -> une ligne par (date, polluant, niveau), zone décrite par les critères."""
+    df = pd.DataFrame(raw)
+    if df.empty:
+        return pd.DataFrame(columns=["date", "zone", "polluant", "niveau"]), {"lignes_brutes": 0, "lignes_finales": 0}
+    avant = len(df)
     df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce").dt.date
-    df["polluant"] = df["polluant"].str.upper().str.replace(".", "", regex=False).str.replace(" ", "", regex=False)
-    df["niveau"] = df["niveau"].str.lower().str.strip()
-    return df.dropna(subset=["date"]).drop_duplicates()
+    dates_invalides = int(df["date"].isna().sum())
+    df["polluant"] = (df["polluant"].astype(str).str.upper()
+                      .str.replace(" ", "", regex=False).str.replace(",", ".", regex=False)
+                      .str.replace("PM25", "PM2.5", regex=False))
+    df["niveau"] = df["niveau"].astype(str).str.strip().str.lower().map(lambda v: NIVEAUX.get(v, v))
+
+    def zone(r) -> str:
+        crit = [c for c, ok in (("population > 10 % d'un département", r.get("critere_population")),
+                                ("surface > 100 km²", r.get("critere_surface"))) if ok]
+        return "Île-de-France" + (f" ({' et '.join(crit)})" if crit else "")
+
+    df["zone"] = df.apply(zone, axis=1)
+    df = df.dropna(subset=["date"]).drop_duplicates(["date", "polluant", "niveau"])
+    stats = {"lignes_brutes": avant, "dates_invalides_rejetees": dates_invalides,
+             "doublons_supprimes": avant - dates_invalides - len(df), "lignes_finales": len(df)}
+    return df[["date", "zone", "polluant", "niveau"]].reset_index(drop=True), stats
+
+
+# Noms de colonnes possibles dans les fichiers Airparif / Atmo (notice des flux open data des AASQA).
+STATION_COLS = {
+    "code_station": ["code_station", "code_station_ue", "code_station (ue)", "code_site", "id_station"],
+    "nom_station": ["nom_station", "station", "nom_site"],
+    "typologie": ["typologie"],
+    "influence": ["influence"],
+    "commune": ["nom_com", "commune"],
+    "insee_com": ["insee_com", "code_insee"],
+    "lon": ["x_wgs84", "lon", "longitude"],
+    "lat": ["y_wgs84", "lat", "latitude"],
+}
 
 
 def clean_stations(path: Path) -> tuple[pd.DataFrame, dict]:
-    df = pd.read_csv(path, sep=None, engine="python")
+    """Le fichier Airparif contient des MESURES aux stations : on en déduit le référentiel des stations
+    (une ligne par station, colonnes homogénéisées)."""
+    df = pd.read_csv(path, sep=None, engine="python", encoding="utf-8-sig")
     df.columns = [c.strip().lower() for c in df.columns]
-    avant = len(df)
-    df = df.drop_duplicates()
-    return df, {"lignes_brutes": avant, "doublons_supprimes": avant - len(df), "lignes_finales": len(df)}
+    rename = {}
+    for cible, candidats in STATION_COLS.items():
+        trouve = next((c for c in candidats if c in df.columns), None)
+        if trouve:
+            rename[trouve] = cible
+    if "code_station" not in rename.values():
+        raise ValueError(f"colonne d'identifiant de station introuvable parmi : {list(df.columns)}")
+    lignes = len(df)
+    df = df.rename(columns=rename)[list(rename.values())]
+    df["code_station"] = df["code_station"].astype(str).str.strip()
+    df = df.drop_duplicates("code_station").sort_values("code_station").reset_index(drop=True)
+    return df, {"lignes_brutes_mesures": lignes, "stations_uniques": len(df),
+                "colonnes_retenues": ", ".join(df.columns)}
 
 
 def to_markdown(report: dict) -> str:
@@ -159,7 +205,8 @@ def to_markdown(report: dict) -> str:
             lines += [f"## {name.capitalize()}", "", "| Indicateur | Valeur |", "|---|---|"]
             lines += [f"| {k.replace('_', ' ')} | {v} |" for k, v in s.items()] + [""]
     if "episodes" in report:
-        lines += ["## Épisodes de pollution", "", f"Lignes retenues : {report['episodes']['lignes']}", ""]
+        lines += ["## Épisodes de pollution (scraping Airparif)", "", "| Indicateur | Valeur |", "|---|---|"]
+        lines += [f"| {k.replace('_', ' ')} | {v} |" for k, v in report["episodes"].items()] + [""]
     return "\n".join(lines)
 
 
@@ -182,9 +229,9 @@ def main() -> int:
         report["mesures"] = stats
 
     if p := latest("episodes"):
-        episodes = clean_episodes(json.loads(p.read_text(encoding="utf-8")))
+        episodes, stats = clean_episodes(json.loads(p.read_text(encoding="utf-8")))
         episodes.to_csv(OUT / "episodes.csv", index=False)
-        report["episodes"] = {"lignes": len(episodes)}
+        report["episodes"] = stats
 
     if p := latest("stations", "*.csv"):
         stations, stats = clean_stations(p)

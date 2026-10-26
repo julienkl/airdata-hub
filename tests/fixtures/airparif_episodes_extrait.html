@@ -1,0 +1,15 @@
+<!-- JEU DE TEST : reproduit la STRUCTURE du tableau de la page Airparif « Historique des épisodes de pollution »
+     (https://www.airparif.fr/historique-des-episodes-de-pollution). Ces lignes servent uniquement aux tests
+     automatiques du parseur ; les données réelles sont collectées par src/data/collect.py. -->
+<html><body>
+<table>
+  <tr><th colspan="6">Entre le 01/01/2026 et le 26/10/2026 pour les polluants : NO2, O3, PM10</th></tr>
+  <tr><th rowspan="2">Level</th><th rowspan="2">Polluant</th><th rowspan="2">Date</th>
+      <th colspan="2">Critères de dépassement</th><th rowspan="2">Détails</th></tr>
+  <tr><th>Plus de 10% de la population d'un département d'Île-de-France</th><th>Plus de 100 km² sur la région Île-de-France</th></tr>
+  <tr><td>Informations</td><td>PM10</td><td>06/03/2026</td><td><img src="check.svg" alt=""></td><td><img src="check.svg" alt=""></td><td><a href="/episode/123">Voir</a></td></tr>
+  <tr><td>Informations</td><td>PM10</td><td>25/05/2026</td><td><img src="check.svg" alt=""></td><td></td><td><a href="/episode/124">Voir</a></td></tr>
+  <tr><td>Informations</td><td>O3</td><td>27/05/2026</td><td></td><td><img src="check.svg" alt=""></td><td><a href="/episode/125">Voir</a></td></tr>
+  <tr><td>Alerte</td><td>O3</td><td>15/08/2026</td><td></td><td><img src="check.svg" alt=""></td><td><a href="/episode/126">Voir</a></td></tr>
+</table>
+</body></html>
