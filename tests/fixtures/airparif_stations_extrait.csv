@@ -1,5 +1,5 @@
-nom_station,code_station,typologie,influence,nom_com,insee_com,x_wgs84,y_wgs84,nom_poll,valeur,unite,date_debut
-STATION TEST A,FR00001,Urbaine,Fond,Paris,75056,2.30,48.85,PM10,18.2,µg/m3,2026/10/25 10:00:00
-STATION TEST A,FR00001,Urbaine,Fond,Paris,75056,2.30,48.85,PM10,17.9,µg/m3,2026/10/25 11:00:00
-STATION TEST B,FR00002,Urbaine,Trafic,Paris,75056,2.40,48.84,PM10,25.1,µg/m3,2026/10/25 10:00:00
-STATION TEST C,FR00003,Périurbaine,Fond,Montreuil,93048,2.44,48.86,PM10,12.0,µg/m3,2026/10/25 10:00:00
+id,nom_dept,nom_com,id_com,nom_station,code_station_ue,typologie,nom_poll,id_poll_ue,valeur,unite,metrique,date_debut,date_fin,statut_valid,x,y
+1,TEST,COMMUNE TEST A,78164,Station test A,4181,Periurb.,PM10,5,7.3,ug.m-3,horaire,2017/09/18 16:00:00+00,2017/09/18 17:00:00+00,1,613827,6837698
+2,TEST,COMMUNE TEST A,78164,Station test A,4181,Periurb.,PM10,5,13.2,ug.m-3,horaire,2017/09/18 17:00:00+00,2017/09/18 18:00:00+00,1,613827,6837698
+3,TEST,PARIS,75056,Station test B,4002,Urbaine,PM10,5,21.0,ug.m-3,horaire,2017/09/18 16:00:00+00,2017/09/18 17:00:00+00,1,652469,6862035
+4,TEST,PARIS,75056,Station test C,4003,Trafic,PM10,5,30.5,ug.m-3,horaire,2017/09/19 16:00:00+00,2017/09/19 17:00:00+00,1,652469,6862035

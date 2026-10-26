@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -154,16 +155,47 @@ STATION_COLS = {
     "typologie": ["typologie"],
     "influence": ["influence"],
     "commune": ["nom_com", "commune"],
-    "insee_com": ["insee_com", "code_insee"],
-    "lon": ["x_wgs84", "lon", "longitude"],
-    "lat": ["y_wgs84", "lat", "latitude"],
+    "insee_com": ["insee_com", "id_com", "code_insee"],
+    "lon": ["x_wgs84", "lon", "longitude", "x"],
+    "lat": ["y_wgs84", "lat", "latitude", "y"],
 }
+
+
+def lambert93_vers_wgs84(x: float, y: float) -> tuple[float, float]:
+    """Convertit des coordonnées Lambert-93 (EPSG:2154, en mètres) en latitude/longitude WGS84 (degrés).
+
+    Formules de projection conique conforme de Lambert (algorithmes IGN), ellipsoïde GRS80.
+    Précision de l'ordre du mètre, largement suffisante pour placer une station de mesure.
+    """
+    n, c = 0.7256077650532670, 11754255.426096
+    xs, ys = 700000.0, 12655612.049876
+    e = 0.0818191910428158
+    lon0 = math.radians(3.0)
+    r = math.hypot(x - xs, y - ys)
+    gamma = math.atan((x - xs) / (ys - y))
+    lon = lon0 + gamma / n
+    lat_iso = -1 / n * math.log(abs(r / c))
+    lat = 2 * math.atan(math.exp(lat_iso)) - math.pi / 2
+    for _ in range(20):  # résolution itérative de la latitude
+        es = e * math.sin(lat)
+        nouvelle = 2 * math.atan(((1 + es) / (1 - es)) ** (e / 2) * math.exp(lat_iso)) - math.pi / 2
+        if abs(nouvelle - lat) < 1e-12:
+            break
+        lat = nouvelle
+    return round(math.degrees(lat), 6), round(math.degrees(lon), 6)
 
 
 def clean_stations(path: Path) -> tuple[pd.DataFrame, dict]:
     """Le fichier Airparif contient des MESURES aux stations : on en déduit le référentiel des stations
-    (une ligne par station, colonnes homogénéisées)."""
-    df = pd.read_csv(path, sep=None, engine="python", encoding="utf-8-sig")
+    (une ligne par station, colonnes homogénéisées, coordonnées en WGS84 comme les communes)."""
+    # Lecture optimisée pour un gros fichier (~800 000 lignes) : séparateur détecté sur la 1re ligne,
+    # moteur C de pandas, et chargement des seules colonnes utiles.
+    with open(path, encoding="utf-8-sig") as f:
+        entete = f.readline()
+    sep = max([",", ";", "\t"], key=entete.count)
+    utiles = {c for cands in STATION_COLS.values() for c in cands} | {"date_debut"}
+    df = pd.read_csv(path, sep=sep, encoding="utf-8-sig", low_memory=False,
+                     usecols=lambda c: c.strip().lower() in utiles)
     df.columns = [c.strip().lower() for c in df.columns]
     rename = {}
     for cible, candidats in STATION_COLS.items():
@@ -172,12 +204,31 @@ def clean_stations(path: Path) -> tuple[pd.DataFrame, dict]:
             rename[trouve] = cible
     if "code_station" not in rename.values():
         raise ValueError(f"colonne d'identifiant de station introuvable parmi : {list(df.columns)}")
-    lignes = len(df)
+
+    stats: dict = {"lignes_brutes_mesures": len(df)}
+    if "date_debut" in df.columns:  # période réellement couverte par le fichier (transparence sur la fraîcheur)
+        dates = pd.to_datetime(df["date_debut"], errors="coerce", utc=True)
+        stats["periode_des_mesures"] = f"{dates.min():%Y-%m-%d} → {dates.max():%Y-%m-%d}"
+
     df = df.rename(columns=rename)[list(rename.values())]
     df["code_station"] = df["code_station"].astype(str).str.strip()
     df = df.drop_duplicates("code_station").sort_values("code_station").reset_index(drop=True)
-    return df, {"lignes_brutes_mesures": lignes, "stations_uniques": len(df),
-                "colonnes_retenues": ", ".join(df.columns)}
+    if "insee_com" in df.columns:
+        df["insee_com"] = df["insee_com"].astype(str).str.zfill(5)
+
+    # Règle R9 : coordonnées homogènes. Valeurs en mètres (> 1000) = Lambert-93 -> conversion en WGS84.
+    if {"lat", "lon"} <= set(df.columns):
+        df["lat"] = pd.to_numeric(df["lat"], errors="coerce").astype(float)
+        df["lon"] = pd.to_numeric(df["lon"], errors="coerce").astype(float)
+        lambert = (df["lon"].abs() > 1000) | (df["lat"].abs() > 1000)
+        if lambert.any():
+            converties = df.loc[lambert].apply(lambda r: lambert93_vers_wgs84(r["lon"], r["lat"]), axis=1)
+            df.loc[lambert, "lat"] = [c[0] for c in converties]
+            df.loc[lambert, "lon"] = [c[1] for c in converties]
+        stats["coordonnees_converties_lambert93_vers_wgs84"] = int(lambert.sum())
+
+    stats.update({"stations_uniques": len(df), "colonnes_retenues": ", ".join(df.columns)})
+    return df, stats
 
 
 def to_markdown(report: dict) -> str:

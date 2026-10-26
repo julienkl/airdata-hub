@@ -12,6 +12,7 @@ Implémentées dans `src/data/clean.py`, vérifiées par `tests/test_data.py`. L
 | R6 | Horodatage converti en UTC | Homogénéiser API et fichiers | `test_doublons_supprimes` |
 | R7 | Polluants des épisodes normalisés (`PM 10` → `PM10`) | Jointure possible avec les mesures | `test_clean_episodes_normalise_et_rejette_dates_invalides` |
 | R8 | Dates d'épisodes non interprétables rejetées | Pas de date = épisode inexploitable | idem |
+| R9 | Coordonnées des stations converties de Lambert-93 (EPSG:2154) en WGS84 (latitude/longitude) | Homogénéiser avec les coordonnées GPS des communes ; une valeur > 1000 indique des mètres en Lambert-93 | `test_conversion_lambert93_vers_wgs84`, `test_clean_stations_deduit_le_referentiel` |
 
 ## Tableau avant/après (à remplir avec ta vraie collecte pour la slide)
 
@@ -26,3 +27,5 @@ Implémentées dans `src/data/clean.py`, vérifiées par `tests/test_data.py`. L
 | Valeurs manquantes O3 | 0 | 0 |
 | Valeurs interpolées (trous ≤ 3 h) | — | 0 |
 | Lignes sans aucun polluant supprimées | — | 0 |
+
+**Limite connue :** le fichier Airparif des stations couvre 2017-09-18 → 2024-06-24 (plus mis à jour). Il sert de référentiel des stations ; les mesures récentes proviennent d'Open-Meteo.

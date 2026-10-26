@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.data.clean import clean_episodes, clean_mesures, clean_stations
+from src.data.clean import clean_episodes, clean_mesures, clean_stations, lambert93_vers_wgs84
 from src.data.collect import parse_episodes, robots_autorise
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -32,10 +32,18 @@ def test_clean_episodes_normalise_et_decrit_la_zone():
 
 
 def test_clean_stations_deduit_le_referentiel():
+    # Jeu de test au format réel du fichier Airparif « mes idf horaire pm10 » (coordonnées x/y en Lambert-93).
     df, stats = clean_stations(FIXTURES / "airparif_stations_extrait.csv")
     assert stats["lignes_brutes_mesures"] == 4 and len(df) == 3  # 4 mesures, 3 stations distinctes
-    assert {"code_station", "nom_station", "typologie", "lat", "lon"} <= set(df.columns)
+    assert {"code_station", "nom_station", "typologie", "insee_com", "lat", "lon"} <= set(df.columns)
     assert "valeur" not in df.columns  # le référentiel ne garde pas les mesures
+    assert stats["coordonnees_converties_lambert93_vers_wgs84"] == 3
+    assert stats["periode_des_mesures"] == "2017-09-18 → 2017-09-19"
+
+
+def test_conversion_lambert93_vers_wgs84():
+    lat, lon = lambert93_vers_wgs84(652469, 6862035)  # point de contrôle : centre de Paris
+    assert abs(lat - 48.8566) < 0.001 and abs(lon - 2.3522) < 0.001
 
 
 def test_robots_txt_interdit(monkeypatch):
