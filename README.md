@@ -31,6 +31,10 @@ docker compose run --rm api python -m src.db.import_data --create-user admin --p
 # 4. API (C5)
 uvicorn api.main:app --reload       # puis http://localhost:8000/docs → Authorize
 
+# 5. Interface de consultation (bonus) : consomme l'API, jamais la base
+pip install -r app/requirements.txt
+python -m streamlit run app/streamlit_app.py   # port 8501, se connecter avec un compte API
+
 # Requêtes SQL (C2)
 docker compose exec db psql -U airdata -d airdata -f /sql/queries.sql
 
@@ -56,6 +60,7 @@ sql/queries.sql          C2  requêtes documentées + optimisation
 src/data/clean.py        C3  règles de nettoyage, rapport qualité
 src/db/                  C4  modèle, import, purge RGPD
 api/main.py              C5  API REST + JWT + OpenAPI
+app/                     bonus interface Streamlit (classement, évolution, carte, épisodes) via l'API
 docs/                        MCD, registre RGPD, règles, matrice de preuves
 tests/                       tests données, base, API
 .github/workflows/ci.yml     CI
