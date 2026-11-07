@@ -3,6 +3,7 @@
 --   docker compose exec db psql -U airdata -d airdata -f /sql/queries.sql
 
 -- Q1. Moyenne PM2.5 et NO2 par commune sur les 7 derniers jours
+-- INNER JOIN : une commune sans mesure n'a pas de moyenne, elle est volontairement exclue.
 -- Jointure commune -> mesure (1-N) pour récupérer le nom ; filtre temporel = fenêtre de suivi métier.
 SELECT c.code_insee, c.nom,
        ROUND(AVG(m.pm25)::numeric, 2) AS pm25_moy,
@@ -39,7 +40,8 @@ GROUP BY code_insee, DATE(horodatage)
 HAVING COUNT(*) FILTER (WHERE pm25 > 15) > 0
 ORDER BY jour DESC, heures_depassement DESC;
 
--- Q5. Communes suivies par des abonnés consentants (jointure 3 tables, sans exposer les emails)
+-- Q5. Communes suivies par des abonnés consentants (jointure abonne -> commune, sans exposer les emails)
+-- INNER JOIN : seules les communes qui ont au moins un abonné consentant nous intéressent.
 SELECT c.nom, COUNT(a.id) AS nb_abonnes
 FROM abonne a
 JOIN commune c ON c.code_insee = a.code_insee
@@ -66,3 +68,27 @@ ANALYZE mesure;
 EXPLAIN ANALYZE
 SELECT code_insee, horodatage, pm25 FROM mesure ORDER BY pm25 DESC LIMIT 10;
 -- Preuve : capturer les deux plans et comparer « Execution Time » et le nombre de lignes lues.
+
+-- Q7. Couverture de la collecte : communes SANS aucune mesure sur les 7 derniers jours.
+-- LEFT JOIN (jointure externe) : garde TOUTES les communes, même sans mesure correspondante
+-- (les colonnes de mesure valent alors NULL). Un INNER JOIN les ferait disparaître.
+-- Le filtre de date est dans la condition ON, pas dans le WHERE : dans le WHERE, il éliminerait
+-- les lignes NULL et transformerait le LEFT JOIN en INNER JOIN.
+SELECT c.code_insee, c.nom, c.population, COUNT(m.id) AS nb_mesures_7j
+FROM commune c
+LEFT JOIN mesure m
+       ON m.code_insee = c.code_insee
+      AND m.horodatage >= NOW() - INTERVAL '7 days'
+GROUP BY c.code_insee, c.nom, c.population
+HAVING COUNT(m.id) = 0
+ORDER BY c.population DESC;
+
+-- Q8. RGPD : affichage pseudonymisé pour toute consultation ou capture d'écran.
+-- Les mots de passe des comptes API sont HACHÉS (PBKDF2-SHA256, sel aléatoire, 200 000 itérations) :
+-- personne, pas même l'administrateur, ne peut les relire.
+SELECT username, role, LEFT(password_hash, 30) || '…' AS password_hash
+FROM api_user;
+-- Les emails ne peuvent pas être hachés (il faut pouvoir envoyer l'alerte) : ils sont masqués à l'affichage.
+SELECT regexp_replace(email, '^(.).*(@.*)$', '\1***\2') AS email_masque,
+       code_insee, consentement, derniere_activite
+FROM abonne;
